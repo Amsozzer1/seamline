@@ -1,0 +1,18 @@
+[package]
+name = "seamcore"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Weld seam extraction and sequencing for stiffened panels"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+wasm-bindgen = "=0.2.100"
+
+[profile.release]
+opt-level = "s"
+lto = true

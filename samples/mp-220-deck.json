@@ -1,0 +1,11 @@
+{
+  "name": "MP-220 deck panel",
+  "plate": { "length_mm": 8000, "width_mm": 3000, "thickness_mm": 12 },
+  "stiffeners": [
+    { "id": "L1", "profile": "flat_bar", "height_mm": 200, "thickness_mm": 12, "start": [0, 750],  "end": [8000, 750] },
+    { "id": "L2", "profile": "flat_bar", "height_mm": 200, "thickness_mm": 12, "start": [0, 1500], "end": [8000, 1500] },
+    { "id": "L3", "profile": "flat_bar", "height_mm": 200, "thickness_mm": 12, "start": [0, 2250], "end": [8000, 2250] },
+    { "id": "T1", "profile": "flat_bar", "height_mm": 150, "thickness_mm": 10, "start": [2700, 0], "end": [2700, 3000] },
+    { "id": "T2", "profile": "flat_bar", "height_mm": 150, "thickness_mm": 10, "start": [5300, 0], "end": [5300, 3000] }
+  ]
+}

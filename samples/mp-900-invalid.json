@@ -1,0 +1,9 @@
+{
+  "name": "MP-900 invalid example",
+  "plate": { "length_mm": 6000, "width_mm": 2400, "thickness_mm": 10 },
+  "stiffeners": [
+    { "id": "L1", "profile": "flat_bar", "height_mm": 150, "thickness_mm": 10, "start": [0, 600],  "end": [6000, 600] },
+    { "id": "L2", "profile": "flat_bar", "height_mm": 150, "thickness_mm": 10, "start": [0, 780],  "end": [6000, 780] },
+    { "id": "L3", "profile": "flat_bar", "height_mm": 150, "thickness_mm": 10, "start": [0, 1800], "end": [6500, 1800] }
+  ]
+}
