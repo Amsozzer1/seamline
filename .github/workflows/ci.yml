@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: seamcore
+      - run: cargo clippy --all-targets -- -D warnings
+        working-directory: seamcore
+      - run: cargo test
+        working-directory: seamcore
+
+  app:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: seamline
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/seamline
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@0.2.100
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: scripts/build-wasm.sh
+      - run: npm ci --prefix server && npm ci --prefix web
+      - run: npm run build
+      - name: Start server and run end-to-end smoke checks
+        run: |
+          node server/dist/index.js > server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf localhost:3001/api/ping && break; sleep 1; done
+          scripts/smoke.sh
+      - if: failure()
+        run: cat server.log

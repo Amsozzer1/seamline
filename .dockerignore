@@ -1,0 +1,8 @@
+**/node_modules
+**/dist
+**/target
+seamcore/pkg-web
+seamcore/pkg-node
+.git
+docs
+*.md

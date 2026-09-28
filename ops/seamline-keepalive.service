@@ -1,0 +1,8 @@
+[Unit]
+Description=Keep the Seamline demo instance warm
+
+[Service]
+Type=oneshot
+# /api/ping never touches the database, so the hosted Postgres can still suspend when idle.
+ExecStart=/usr/bin/curl -fsS --max-time 60 -o /dev/null ${SEAMLINE_URL}/api/ping
+Environment=SEAMLINE_URL=https://seamline.onrender.com

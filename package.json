@@ -1,0 +1,12 @@
+{
+  "name": "seamline",
+  "private": true,
+  "scripts": {
+    "build:wasm": "scripts/build-wasm.sh",
+    "dev:server": "npm --prefix server run dev",
+    "dev:web": "npm --prefix web run dev",
+    "build": "npm --prefix web run build && npm --prefix server run build",
+    "test": "cd seamcore && cargo test",
+    "smoke": "scripts/smoke.sh"
+  }
+}
