@@ -168,3 +168,5 @@ td .status { margin-left: 8px; }
 @media (max-width: 900px) {
   .seaminfo { display: none; }
 }
+/* A grid item defaults to min-width: auto, so a canvas sized for a wider window would hold the column open. */
+.viewer { min-width: 0; }

@@ -6,7 +6,7 @@ import { check, hasErrors, planFromText } from "../core";
 import { StepList } from "../plan/StepList";
 import type { Issue, Revision, Spec, Step } from "../types";
 import { PanelScene } from "../viewer/PanelScene";
-import { seamStates } from "../viewer/seamState";
+import { seamSegments } from "../viewer/seamState";
 import { SeamInfo, Legend } from "../viewer/Overlays";
 
 export function PlanPage() {
@@ -101,7 +101,7 @@ function PlanEditor({ rev }: { rev: Revision }) {
     return () => clearInterval(t);
   }, [playing, steps.length]);
 
-  const state = cursor === null ? undefined : seamStates(steps, cursor);
+  const segments = cursor === null ? undefined : seamSegments(steps, cursor);
 
   async function run<T>(fn: () => Promise<T>, after?: (v: T) => void) {
     setBusy(true);
@@ -201,13 +201,13 @@ function PlanEditor({ rev }: { rev: Revision }) {
           <PanelScene
             spec={drawSpec}
             seams={seams}
-            state={state}
+            segments={segments}
             highlight={hover}
             highlightParts={badParts}
             showJoints={showJoints}
             onHover={setHover}
           />
-          <Legend showJoints={showJoints} onToggleJoints={() => setShowJoints((v) => !v)} />
+          <Legend showJoints={showJoints} hasJoints={seams.some((s) => s.kind === "joint")} onToggleJoints={() => setShowJoints((v) => !v)} />
           <SeamInfo seam={hover ? seamMap.get(hover) : undefined} />
           <div className="scrubber">
             <button

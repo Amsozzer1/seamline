@@ -1,17 +1,22 @@
 import type { Seam } from "../types";
 import { COLORS } from "./PanelScene";
 
-export function Legend({ showJoints, onToggleJoints, running }: { showJoints: boolean; onToggleJoints: () => void; running?: boolean }) {
+export function Legend({ showJoints, onToggleJoints, running, hasJoints = true }: {
+  showJoints: boolean;
+  onToggleJoints: () => void;
+  running?: boolean;
+  hasJoints?: boolean;
+}) {
   const items = running
     ? [
         ["Welding", COLORS.active],
         ["Done", COLORS.done],
-        ["Pending", COLORS.pending],
-        ["Skipped", COLORS.skipped],
+        ["To weld", COLORS.pending],
+        ["Fault / skipped", COLORS.faulted],
       ]
     : [
         ["Fillet (stiffener to plate)", COLORS.fillet],
-        ["Joint (stiffener to stiffener)", COLORS.joint],
+        ...(hasJoints ? [["Joint (stiffener to stiffener)", COLORS.joint]] : []),
       ];
   return (
     <div className="legend">
@@ -21,9 +26,11 @@ export function Legend({ showJoints, onToggleJoints, running }: { showJoints: bo
           {label}
         </span>
       ))}
-      <label>
-        <input type="checkbox" checked={showJoints} onChange={onToggleJoints} /> joints
-      </label>
+      {hasJoints && (
+        <label>
+          <input type="checkbox" checked={showJoints} onChange={onToggleJoints} /> joints
+        </label>
+      )}
     </div>
   );
 }

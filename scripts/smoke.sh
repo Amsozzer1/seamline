@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # End-to-end checks against a running server: state-machine conflicts, the scripted
-# fault, concurrent retries, and the SSE replay. Usage: scripts/smoke.sh [base_url]
+# fault, concurrent retries, and the SSE stream. Usage: scripts/smoke.sh [base_url]
+# Resets the demo data before and after, so it is safe to run against the public demo.
 set -euo pipefail
 BASE="${1:-http://localhost:3001}"
 pass=0
@@ -16,7 +17,7 @@ PANEL=$(curl -sf "$BASE/api/panels" | json "[p for p in d if p['name'].startswit
 # --- revision state machine ---
 [ "$(code -X PUT "$BASE/api/revisions/$REV" -H 'content-type: application/json' -d '{"spec":{"name":"x"},"steps":[]}')" = 422 ] && ok "bad plan -> 422" || fail "bad plan"
 BODY=$(mktemp)
-curl -sf "$BASE/api/revisions/$REV" | json "json.dumps({'spec': d['spec'], 'steps': d['steps']})" >"$BODY"
+curl -sf "$BASE/api/revisions/$REV" | json "json.dumps({'spec': {**d['spec'], 'name': 'Smoke test panel'}, 'steps': d['steps']})" >"$BODY"
 STEPS=$(json "json.dumps(d['steps'])" <"$BODY")
 [ "$(code -X PUT "$BASE/api/revisions/$REV" -H 'content-type: application/json' -d @"$BODY")" = 409 ] && ok "edit released -> 409" || fail "edit released"
 [ "$(code -X POST "$BASE/api/revisions/$REV/release")" = 409 ] && ok "release released -> 409" || fail "release released"
@@ -74,4 +75,6 @@ assert all(type(e["id"]) is int for e in evs + live), "event ids must be integer
 PY
 ok "SSE live + replay: integer ids, ordered, no duplicate steps, one retry, ends complete"
 
+# Leave the demo as a visitor would expect to find it.
+curl -sf -X POST "$BASE/api/demo/reset" >/dev/null
 echo "$pass checks passed"

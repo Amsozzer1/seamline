@@ -6,7 +6,7 @@ import type { Run, RunEvent } from "../types";
 import { useRunStream } from "../useRunStream";
 import { Legend, SeamInfo } from "../viewer/Overlays";
 import { PanelScene } from "../viewer/PanelScene";
-import { seamStates } from "../viewer/seamState";
+import { seamSegments } from "../viewer/seamState";
 
 export function OperatorPage() {
   const { id } = useParams();
@@ -64,7 +64,8 @@ function Operator({ run }: { run: Run }) {
   const step = run.steps[cursor];
   const seam = step ? seamMap.get(step.seam_id) : undefined;
   const done = complete ? total : view.current;
-  const state = useMemo(() => seamStates(run.steps, cursor, view.skipped, view.status !== "running"), [run.steps, cursor, view.skipped, view.status]);
+  const current = view.status === "faulted" ? "faulted" : view.status === "running" ? "active" : "pending";
+  const segments = useMemo(() => seamSegments(run.steps, cursor, current, view.skipped), [run.steps, cursor, current, view.skipped]);
   const elapsed = view.startedAt ? (view.finishedAt ?? now) - view.startedAt : 0;
   const remainingMs = run.steps.slice(cursor).reduce((acc, s) => acc + stepDurationMs(s, seamMap.get(s.seam_id), run.speed), 0);
 
@@ -156,8 +157,8 @@ function Operator({ run }: { run: Run }) {
 
       <div className="workspace">
         <section className="viewer">
-          <PanelScene spec={run.spec} seams={seams} state={state} highlight={hover} showJoints={showJoints} torch={torch} onHover={setHover} />
-          <Legend running showJoints={showJoints} onToggleJoints={() => setShowJoints((v) => !v)} />
+          <PanelScene spec={run.spec} seams={seams} segments={segments} highlight={hover} showJoints={showJoints} torch={torch} onHover={setHover} />
+          <Legend running hasJoints={seams.some((s) => s.kind === "joint")} showJoints={showJoints} onToggleJoints={() => setShowJoints((v) => !v)} />
           <SeamInfo seam={hover ? seamMap.get(hover) : undefined} />
         </section>
         <aside className="side">

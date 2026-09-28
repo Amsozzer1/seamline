@@ -1,34 +1,40 @@
 import type { Step } from "../types";
-import type { SeamState } from "./PanelScene";
+
+export type SegmentState = "pending" | "active" | "faulted" | "done" | "skipped";
+/** A stretch of one seam, as fractions of its length, in one state. */
+export type Segment = { from: number; to: number; state: SegmentState };
+
+const RANGE: Record<Step["portion"], [number, number]> = {
+  full: [0, 1],
+  first_half: [0, 0.5],
+  second_half: [0.5, 1],
+};
 
 /**
- * Colour every seam by where a plan is: steps before `cursor` are done, the step at
- * `cursor` is active, the rest are pending. A seam welded in halves counts as done
- * only when both halves are.
+ * What every seam looks like at a point in the plan. Seams welded in halves are drawn
+ * half by half, so a finished first half shows as done while the second is still
+ * pending, active or faulted. Steps before `cursor` are done (or skipped), the step at
+ * `cursor` takes `current`, the rest are pending.
  */
-export function seamStates(
+export function seamSegments(
   steps: Step[],
   cursor: number,
+  current: "active" | "faulted" | "pending" = "active",
   skipped: Set<number> = new Set(),
-  markActive = true,
-): Map<string, SeamState> {
-  const out = new Map<string, SeamState>();
-  const remaining = new Map<string, number>();
-  for (const s of steps) if (s.kind === "weld") remaining.set(s.seam_id, (remaining.get(s.seam_id) ?? 0) + 1);
-  for (const s of steps) out.set(s.seam_id, "pending");
-
+): Map<string, Segment[]> {
+  const out = new Map<string, Segment[]>();
   steps.forEach((s, i) => {
-    if (i >= cursor || s.kind !== "weld") return;
-    if (skipped.has(i)) {
-      out.set(s.seam_id, "skipped");
-      remaining.set(s.seam_id, -Infinity);
-      return;
-    }
-    const left = (remaining.get(s.seam_id) ?? 1) - 1;
-    remaining.set(s.seam_id, left);
-    if (left === 0) out.set(s.seam_id, "done");
+    if (s.kind !== "weld") return;
+    const [from, to] = RANGE[s.portion];
+    const state: SegmentState = i < cursor ? (skipped.has(i) ? "skipped" : "done") : i === cursor ? current : "pending";
+    const list = out.get(s.seam_id) ?? [];
+    list.push({ from, to, state });
+    out.set(s.seam_id, list);
   });
-  const current = steps[cursor];
-  if (current && markActive) out.set(current.seam_id, "active");
+  // While the cursor is on a tack, show that seam as active along its whole length.
+  const step = steps[cursor];
+  if (step?.kind === "tack" && current !== "pending") {
+    out.set(step.seam_id, [{ from: 0, to: 1, state: current }]);
+  }
   return out;
 }

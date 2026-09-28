@@ -1,24 +1,25 @@
 import { Grid, Line, OrbitControls } from "@react-three/drei";
-import { Canvas, useFrame } from "@react-three/fiber";
-import { useMemo, useRef } from "react";
-import type { Mesh } from "three";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { useEffect, useMemo, useRef } from "react";
+import { PerspectiveCamera, Vector3, type Mesh } from "three";
 import type { Seam, Spec, Step, Vec3 } from "../types";
+import type { Segment, SegmentState } from "./seamState";
 
 /** Millimetres to scene units (metres). */
 const S = 0.001;
 /** Seam lines sit this far off the web face and plate so they are not buried in the geometry. */
 const LIFT_MM = 5;
 
-export type SeamState = "pending" | "active" | "done" | "skipped" | "plain";
-
 export const COLORS = {
   plate: "#c8cdd3",
   stiffener: "#aeb5bd",
   fillet: "#1f5fa8",
   joint: "#4a4f55",
-  pending: "#c2c8cf",
+  // Must stay readable against the plate: this is "still to weld", not "absent".
+  pending: "#2f3944",
   done: "#1f5fa8",
   active: "#e8590c",
+  faulted: "#c92a2a",
   skipped: "#c92a2a",
   highlight: "#111418",
 };
@@ -26,7 +27,8 @@ export const COLORS = {
 type Props = {
   spec: Spec;
   seams: Seam[];
-  state?: Map<string, SeamState>;
+  /** Per-seam progress. Without it, seams are coloured by kind. */
+  segments?: Map<string, Segment[]>;
   highlight?: string | null;
   highlightParts?: Set<string>;
   showJoints?: boolean;
@@ -83,9 +85,6 @@ function Torch({ spec, torch }: { spec: Spec; torch: NonNullable<Props["torch"]>
   });
   return (
     <>
-      {torch.step.kind === "weld" && (
-        <Line points={[p0, p1]} color={COLORS.active} lineWidth={5} depthTest={false} renderOrder={11} />
-      )}
       <mesh ref={ref} position={p0} renderOrder={12}>
         <sphereGeometry args={[0.045, 20, 20]} />
         <meshBasicMaterial color={COLORS.active} depthTest={false} transparent opacity={0.95} />
@@ -94,22 +93,17 @@ function Torch({ spec, torch }: { spec: Spec; torch: NonNullable<Props["torch"]>
   );
 }
 
-function colorFor(seam: Seam, state: SeamState | undefined) {
-  switch (state) {
-    case "active":
-      return COLORS.active;
-    case "done":
-      return COLORS.done;
-    case "skipped":
-      return COLORS.skipped;
-    case "pending":
-      return COLORS.pending;
-    default:
-      return seam.kind === "fillet" ? COLORS.fillet : COLORS.joint;
-  }
-}
+const lerp = (a: Vec3, b: Vec3, t: number): Vec3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
-function Panel({ spec, seams, state, highlight, highlightParts, showJoints = true, torch, onHover, onSelect }: Props) {
+const STYLE: Record<SegmentState, { color: string; width: number; onTop: boolean }> = {
+  pending: { color: COLORS.pending, width: 1.25, onTop: false },
+  done: { color: COLORS.done, width: 3, onTop: false },
+  active: { color: COLORS.active, width: 4.5, onTop: true },
+  faulted: { color: COLORS.faulted, width: 4.5, onTop: true },
+  skipped: { color: COLORS.skipped, width: 2, onTop: false },
+};
+
+function Panel({ spec, seams, segments, highlight, highlightParts, showJoints = true, torch, onHover, onSelect }: Props) {
   const { plate } = spec;
   const stiffeners = useMemo(
     () =>
@@ -143,38 +137,95 @@ function Panel({ spec, seams, state, highlight, highlightParts, showJoints = tru
       ))}
       {seams
         .filter((s) => showJoints || s.kind === "fillet")
-        .map((seam) => {
-          const st = state?.get(seam.id);
+        .flatMap((seam) => {
           const [a, b] = offsetSeam(seam);
           const hl = highlight === seam.id;
-          const emphasised = hl || st === "active";
-          return (
-            <Line
-              key={seam.id}
-              points={[toScene(spec, a), toScene(spec, b)]}
-              color={hl ? COLORS.highlight : colorFor(seam, st)}
-              lineWidth={emphasised ? 4.5 : st === "pending" ? 1.5 : 2.5}
-              depthTest={!emphasised}
-              renderOrder={emphasised ? 10 : 1}
-              dashed={st === "skipped"}
-              dashSize={0.05}
-              gapSize={0.03}
-              onPointerOver={onHover ? (e) => (e.stopPropagation(), onHover(seam.id)) : undefined}
-              onPointerOut={onHover ? () => onHover(null) : undefined}
-              onClick={onSelect ? (e) => (e.stopPropagation(), onSelect(seam.id)) : undefined}
-            />
-          );
+          const handlers = {
+            onPointerOver: onHover ? (e: { stopPropagation(): void }) => (e.stopPropagation(), onHover(seam.id)) : undefined,
+            onPointerOut: onHover ? () => onHover(null) : undefined,
+            onClick: onSelect ? (e: { stopPropagation(): void }) => (e.stopPropagation(), onSelect(seam.id)) : undefined,
+          };
+          const segs = segments?.get(seam.id);
+          if (!segs) {
+            return [
+              <Line
+                key={seam.id}
+                points={[toScene(spec, a), toScene(spec, b)]}
+                color={hl ? COLORS.highlight : seam.kind === "fillet" ? COLORS.fillet : COLORS.joint}
+                lineWidth={hl ? 4.5 : 2.5}
+                depthTest={!hl}
+                renderOrder={hl ? 10 : 1}
+                {...handlers}
+              />,
+            ];
+          }
+          return segs.map((seg, i) => {
+            const st = STYLE[seg.state];
+            const onTop = hl || st.onTop;
+            return (
+              <Line
+                key={`${seam.id}:${i}`}
+                points={[toScene(spec, lerp(a, b, seg.from)), toScene(spec, lerp(a, b, seg.to))]}
+                color={hl ? COLORS.highlight : st.color}
+                lineWidth={hl ? Math.max(st.width, 3.5) : st.width}
+                depthTest={!onTop}
+                renderOrder={onTop ? 10 : 1}
+                dashed={seg.state === "skipped"}
+                dashSize={0.05}
+                gapSize={0.03}
+                {...handlers}
+              />
+            );
+          });
         })}
       {torch && <Torch spec={spec} torch={torch} />}
     </group>
   );
 }
 
+const VIEW_DIR = new Vector3(0.26, 0.52, 0.82).normalize();
+
+/**
+ * Place the camera so the whole plate fits the viewer, using the viewer's real aspect
+ * ratio. Runs on load and on resize only, so it never fights the user's orbiting.
+ */
+function FitCamera({ length, width }: { length: number; width: number }) {
+  const camera = useThree((s) => s.camera) as PerspectiveCamera;
+  const aspect = useThree((s) => s.size.width / Math.max(1, s.size.height));
+  const controls = useThree((s) => s.controls) as { target: Vector3; update(): void } | null;
+  useEffect(() => {
+    // Perspective makes the near corners loom larger than a centre-based estimate allows,
+    // so project the plate's corners and scale the distance until they all sit in frame.
+    const corners = [-1, 1].flatMap((x) => [-1, 1].flatMap((z) => [0, 0.2].map((y) => new Vector3((x * length) / 2, y, (z * width) / 2))));
+    const fill = 0.9;
+    let dist = Math.max(length, width);
+    camera.aspect = aspect;
+    camera.updateProjectionMatrix();
+    for (let i = 0; i < 8; i++) {
+      camera.position.copy(VIEW_DIR).multiplyScalar(dist);
+      camera.lookAt(0, 0, 0);
+      camera.updateMatrixWorld();
+      const reach = Math.max(...corners.map((c) => {
+        const p = c.clone().project(camera);
+        return Math.max(Math.abs(p.x), Math.abs(p.y));
+      }));
+      dist *= Math.pow(reach / fill, 0.9);
+    }
+    camera.position.copy(VIEW_DIR).multiplyScalar(dist);
+    camera.lookAt(0, 0, 0);
+    if (controls) {
+      controls.target.set(0, 0, 0);
+      controls.update();
+    }
+  }, [camera, aspect, length, width, controls]);
+  return null;
+}
+
 export function PanelScene(props: Props) {
   const span = Math.max(props.spec.plate.length_mm, props.spec.plate.width_mm) * S;
   return (
     <Canvas
-      className="scene"
+      style={{ position: "absolute", inset: 0 }}
       camera={{ position: [span * 0.26, span * 0.52, span * 0.82], fov: 38, near: 0.01, far: 200 }}
       dpr={[1, 2]}
       raycaster={{ params: { Line: { threshold: 0.02 } } as never }}
@@ -183,6 +234,7 @@ export function PanelScene(props: Props) {
       <ambientLight intensity={0.9} />
       <directionalLight position={[4, 8, 5]} intensity={1.6} />
       <directionalLight position={[-6, 4, -4]} intensity={0.5} />
+      <FitCamera length={props.spec.plate.length_mm * S} width={props.spec.plate.width_mm * S} />
       <Panel {...props} />
       <Grid
         position={[0, -(props.spec.plate.thickness_mm * S) - 0.002, 0]}
