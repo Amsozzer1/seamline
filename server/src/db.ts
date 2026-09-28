@@ -3,6 +3,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 
+// bigint (run_events.id) arrives as a string by default. Event ids are compared for
+// ordering and de-duplication, and "100" < "99" as strings, so parse them as numbers.
+// Safe: ids stay far below 2^53.
+pg.types.setTypeParser(pg.types.builtins.INT8, Number);
+
 const url = process.env.DATABASE_URL ?? "postgres://localhost/seamline";
 
 export const pool = new pg.Pool({

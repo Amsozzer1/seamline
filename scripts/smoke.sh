@@ -32,6 +32,8 @@ DUP=$(curl -sf -X POST "$BASE/api/panels/$PANEL/duplicate" | json "d['revision_i
 
 # --- run: scripted fault, concurrent retry, completion ---
 RUN=$(curl -sf -X POST "$BASE/api/revisions/$REV/runs" -H 'content-type: application/json' -d '{"speed":10}' | json "d['run_id']")
+LIVE=$(mktemp)
+curl -sN --max-time 6 "$BASE/api/runs/$RUN/stream" >"$LIVE" || true &
 [ "$(code -X POST "$BASE/api/revisions/$REV/runs" -H 'content-type: application/json' -d '{"speed":10}')" = 409 ] && ok "second run while running -> 409" || fail "double run"
 [ "$(code -X POST "$BASE/api/runs/$RUN/actions" -H 'content-type: application/json' -d '{"action":"retry"}')" = 409 ] && ok "retry while running -> 409" || fail "retry running"
 
@@ -66,7 +68,10 @@ done = [e["step"] for e in evs if e["kind"] == "step_done"]
 assert done == list(range(n)), f"step_done out of order or duplicated: {done[:10]}..."
 assert [e["kind"] for e in evs].count("retry") == 1, "expected one retry"
 assert evs[-1]["kind"] == "complete"
+live = [json.loads(l[6:]) for l in open("$LIVE").read().splitlines() if l.startswith("data: ")]
+assert live, "no live events captured"
+assert all(type(e["id"]) is int for e in evs + live), "event ids must be integers (string ids sort wrongly)"
 PY
-ok "SSE replay: ordered, no duplicate steps, one retry, ends complete"
+ok "SSE live + replay: integer ids, ordered, no duplicate steps, one retry, ends complete"
 
 echo "$pass checks passed"

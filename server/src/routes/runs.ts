@@ -68,7 +68,7 @@ runs.get("/runs/:id/stream", async (req, res) => {
   });
 
   const past = await query<RunEvent>("select * from run_events where run_id = $1 and id > $2 order by id", [runId, lastSent]);
-  for (const ev of past.rows) send({ ...ev, id: Number(ev.id) });
+  for (const ev of past.rows) send(ev);
   replaying = false;
-  for (const ev of pending) send({ ...ev, id: Number(ev.id) });
+  for (const ev of pending) send(ev);
 });

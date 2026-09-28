@@ -109,6 +109,14 @@ Retry or Skip flips the run row from `faulted` to `running` in one statement and
 a fresh loop from `current_step`. When two operators click Retry at the same time,
 exactly one update succeeds; the smoke test checks this.
 
+**Problem: event ids were strings on the live path only.** Postgres returns `bigint` as a
+string. Replayed events were converted to numbers, but live ones were not, and the
+browser de-duplicates by comparing ids; as strings, `"100" <= "99"` is true, so every run
+would have started silently dropping events once ids reached three digits. It was caught
+by holding a live stream open against the deployed app, not by the tests, which only
+checked replay. `bigint` is now parsed as a number at the driver, and the smoke test
+captures the live stream too and asserts integer ids (it fails without the fix).
+
 **A server restart is just another fault.** On boot, any run still marked `running` is
 set to `faulted` with "controller lost power mid-step". The operator retries the
 interrupted step, the same way they would on a real cell.

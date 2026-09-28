@@ -5,7 +5,7 @@ seam, puts the seams in a build order, lets an engineer review and release the p
 3D, and shows an operator a simulated weld cell working through it, including a fault
 and a recovery.
 
-**Live demo:** LIVE_URL (free tier, so the first load after a quiet period can take a few seconds)
+**Live demo:** https://seamline.onrender.com (free tier, so the first load after a quiet period can take a few seconds)
 
 ![Seamline demo](docs/demo.gif)
 
