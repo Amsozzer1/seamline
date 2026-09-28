@@ -10,7 +10,7 @@ create table revisions (
   id          uuid primary key default gen_random_uuid(),
   panel_id    uuid not null references panels(id) on delete cascade,
   rev         int not null,
-  spec        jsonb not null,
+  spec        json not null,   -- json, not jsonb: keeps the author's key order for the spec editor
   steps       jsonb not null,
   status      text not null check (status in ('draft', 'released')),
   created_at  timestamptz not null default now(),
