@@ -170,3 +170,7 @@ td .status { margin-left: 8px; }
 }
 /* A grid item defaults to min-width: auto, so a canvas sized for a wider window would hold the column open. */
 .viewer { min-width: 0; }
+/* The event log inserts new lines at the top. Browser scroll anchoring would scroll the
+   column down to keep older lines in place, pushing the newest events out of view. */
+.side, .log { overflow-anchor: none; }
+.operator .side h2 { position: sticky; top: 0; background: var(--bg); padding-bottom: 6px; margin-bottom: 2px; z-index: 1; }
